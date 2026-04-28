@@ -49,8 +49,8 @@ Check what your machine sees:
 bongo-cat-omarchy ports
 ```
 
-If the only serial device is something like `Quectel`, that is probably your
-laptop modem, not the ESP32.
+If the only serial device looks unrelated to an ESP32, CH340, CP210x, FTDI, or
+Espressif board, your ESP32 probably is not enumerating yet.
 
 ## Install Modes
 
