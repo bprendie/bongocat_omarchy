@@ -110,7 +110,7 @@ func configureSerial(fd int) error {
 	}
 	t.Iflag = unix.IGNPAR
 	t.Oflag = 0
-	t.Cflag = unix.CS8 | unix.CLOCAL | unix.CREAD
+	t.Cflag = unix.B115200 | unix.CS8 | unix.CLOCAL | unix.CREAD
 	t.Lflag = 0
 	t.Cc[unix.VMIN] = 0
 	t.Cc[unix.VTIME] = 10
