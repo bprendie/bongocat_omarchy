@@ -160,6 +160,23 @@ journalctl --user -u bongo-cat-omarchy -f
 If the ESP32 is unplugged when the service starts, the process stays alive and
 retries every 3 seconds until the serial device appears.
 
+## Hotplug Behavior
+
+The service is meant to survive desk chaos.
+
+If the ESP32 is unplugged while the app is running, the next serial write will
+fail, the app will close the stale device handle, wait for the stable
+`/dev/serial/by-id/...` path to come back, and reconnect automatically.
+
+With the udev rule installed, the normal loop is:
+
+1. unplug tiny bongo screen
+2. plug tiny bongo screen back in
+3. wait a few seconds
+4. tiny bongo screen resumes its duties
+
+No service restart should be needed.
+
 ## Build
 
 ```bash
