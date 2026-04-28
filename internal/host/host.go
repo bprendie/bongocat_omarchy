@@ -57,6 +57,12 @@ func Run(ctx context.Context, cfg Config) error {
 			_ = link.Send("STOP")
 			return nil
 		case now := <-ticker.C:
+			send := func(command string) bool {
+				next, ok := sendOrReconnect(ctx, link, cfg.Port, command)
+				link = next
+				return ok
+			}
+
 			wpm, active := typing.Snapshot(cfg.IdleTimeout)
 			if active {
 				lastActive = now
@@ -70,41 +76,46 @@ func Run(ctx context.Context, cfg Config) error {
 				keepaliveDue := now.Sub(lastAnimationSent) >= 1200*time.Millisecond
 				canChangeSpeed := now.Sub(lastAnimationSent) >= 450*time.Millisecond
 				if keepaliveDue || (commandChanged && canChangeSpeed) {
-					_ = link.Send(command)
-					lastAnimation = command
-					lastAnimationSent = now
+					if send(command) {
+						lastAnimation = command
+						lastAnimationSent = now
+					}
 				}
 
 				wantStreak := wpm >= 65
 				if wantStreak != streakActive {
 					if wantStreak {
-						_ = link.Send("STREAK_ON")
+						_ = send("STREAK_ON")
 					} else {
-						_ = link.Send("STREAK_OFF")
+						_ = send("STREAK_OFF")
 					}
 					streakActive = wantStreak
 				}
 			} else if lastAnimation != "STOP" {
-				_ = link.Send("STOP")
-				lastAnimation = "STOP"
+				if send("STOP") {
+					lastAnimation = "STOP"
+				}
 				if streakActive {
-					_ = link.Send("STREAK_OFF")
+					_ = send("STREAK_OFF")
 					streakActive = false
 				}
 			} else if !idleStartSent && now.Sub(lastActive) >= cfg.SleepTimeout {
-				_ = link.Send("IDLE_START")
-				idleStartSent = true
+				if send("IDLE_START") {
+					idleStartSent = true
+				}
 			}
 
 			if now.Sub(lastStats) >= 2*time.Second {
 				cpu, ram := metrics.Snapshot()
-				_ = link.Send(fmt.Sprintf("STATS:CPU:%d,RAM:%d,WPM:%d", int(cpu+0.5), int(ram+0.5), int(wpm+0.5)))
-				lastStats = now
+				if send(fmt.Sprintf("STATS:CPU:%d,RAM:%d,WPM:%d", int(cpu+0.5), int(ram+0.5), int(wpm+0.5))) {
+					lastStats = now
+				}
 			}
 
 			if now.Sub(lastTime) >= 30*time.Second {
-				_ = link.Send("TIME:" + time.Now().Format("15:04"))
-				lastTime = now
+				if send("TIME:" + time.Now().Format("15:04")) {
+					lastTime = now
+				}
 			}
 		}
 	}
@@ -126,6 +137,28 @@ func waitForSerial(ctx context.Context, port string) (*SerialLink, error) {
 		case <-timer.C:
 		}
 	}
+}
+
+func sendOrReconnect(ctx context.Context, link *SerialLink, port string, command string) (*SerialLink, bool) {
+	if err := link.Send(command); err == nil {
+		return link, true
+	} else {
+		fmt.Printf("Serial write failed, reconnecting: %v\n", err)
+	}
+
+	_ = link.CloseWithoutStop()
+	next, err := waitForSerial(ctx, port)
+	if err != nil || next == nil {
+		return link, false
+	}
+	fmt.Printf("Reconnected to ESP32 on %s\n", next.Path())
+
+	if err := next.Send(command); err != nil {
+		fmt.Printf("Serial write failed after reconnect: %v\n", err)
+		_ = next.CloseWithoutStop()
+		return link, false
+	}
+	return next, true
 }
 
 func WPMToAnimationSpeed(wpm float64) int {

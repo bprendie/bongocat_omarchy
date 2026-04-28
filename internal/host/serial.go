@@ -86,6 +86,9 @@ func (l *SerialLink) Path() string {
 }
 
 func (l *SerialLink) Send(command string) error {
+	if l == nil || l.file == nil {
+		return fmt.Errorf("serial link is closed")
+	}
 	elapsed := time.Since(l.lastSend)
 	if elapsed < 50*time.Millisecond {
 		time.Sleep(50*time.Millisecond - elapsed)
@@ -99,6 +102,15 @@ func (l *SerialLink) Close() error {
 	if l.file != nil {
 		_ = l.Send("STOP")
 		return l.file.Close()
+	}
+	return nil
+}
+
+func (l *SerialLink) CloseWithoutStop() error {
+	if l != nil && l.file != nil {
+		err := l.file.Close()
+		l.file = nil
+		return err
 	}
 	return nil
 }
