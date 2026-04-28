@@ -78,6 +78,14 @@ Install with a 12-hour clock:
 ./scripts/install-omarchy.sh --service --clock 12h
 ```
 
+Switch an already-installed service between clock modes by rerunning the
+installer with the format you want:
+
+```bash
+./scripts/install-omarchy.sh --service --clock 12h
+./scripts/install-omarchy.sh --service --clock 24h
+```
+
 Mostly unattended:
 
 ```bash
