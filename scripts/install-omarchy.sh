@@ -53,8 +53,12 @@ echo "Building ${APP_NAME}..."
 mkdir -p bin
 GOCACHE="${REPO_ROOT}/.gocache" GOMODCACHE="${REPO_ROOT}/.gomodcache" go build -o "${BINARY}" ./cmd/bongo-cat-omarchy
 
-echo "Linking ${LINK_PATH}..."
-sudo ln -sf "${BINARY}" "${LINK_PATH}"
+if [[ "$(readlink "${LINK_PATH}" 2>/dev/null || true)" == "${BINARY}" ]]; then
+  echo "Link already installed: ${LINK_PATH} -> ${BINARY}"
+else
+  echo "Linking ${LINK_PATH}..."
+  sudo ln -sf "${BINARY}" "${LINK_PATH}"
+fi
 
 cat <<INFO
 

@@ -100,3 +100,5 @@ Logs:
 ```bash
 journalctl --user -u bongo-cat-omarchy -f
 ```
+
+If the ESP32 is unplugged when the service starts, the process stays active and retries every 3 seconds until the serial device appears.

@@ -21,9 +21,12 @@ func Run(ctx context.Context, cfg Config) error {
 		cfg.SleepTimeout = time.Minute
 	}
 
-	link, err := OpenSerial(cfg.Port)
+	link, err := waitForSerial(ctx, cfg.Port)
 	if err != nil {
 		return err
+	}
+	if link == nil {
+		return nil
 	}
 	defer link.Close()
 	fmt.Printf("Connected to ESP32 on %s\n", link.Path())
@@ -103,6 +106,24 @@ func Run(ctx context.Context, cfg Config) error {
 				_ = link.Send("TIME:" + time.Now().Format("15:04"))
 				lastTime = now
 			}
+		}
+	}
+}
+
+func waitForSerial(ctx context.Context, port string) (*SerialLink, error) {
+	for {
+		link, err := OpenSerial(port)
+		if err == nil {
+			return link, nil
+		}
+		fmt.Printf("Waiting for ESP32 serial device: %v\n", err)
+
+		timer := time.NewTimer(3 * time.Second)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return nil, nil
+		case <-timer.C:
 		}
 	}
 }
