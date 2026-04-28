@@ -26,19 +26,31 @@ go build -o bin/bongo-cat-omarchy ./cmd/bongo-cat-omarchy
 
 ## Install On Omarchy
 
-The installer builds the binary, symlinks it to `/usr/local/bin`, prints the USB/input permission setup, and can install a user systemd service.
+The installer builds the binary, symlinks it to `/usr/local/bin`, checks USB/input permissions, and can install a user systemd service.
 
 ```bash
 ./scripts/install-omarchy.sh
 ```
 
-Install and enable the background service:
+The guided install asks before applying permission fixes or enabling the service.
+
+Install and enable the background service in one command:
 
 ```bash
-./scripts/install-omarchy.sh --enable-service --port /dev/serial/by-id/usb-1a86_USB_Serial-if00-port0
+./scripts/install-omarchy.sh --service --port /dev/serial/by-id/usb-1a86_USB_Serial-if00-port0
 ```
 
-The symlink step uses `sudo`:
+For a mostly unattended install:
+
+```bash
+./scripts/install-omarchy.sh --service --fix-permissions -y
+```
+
+The script uses `sudo` only when it needs to:
+
+- link `/usr/local/bin/bongo-cat-omarchy`
+- add your user to `uucp,input`
+- grant a temporary ACL to the currently plugged-in ESP32 serial device
 
 ```text
 /usr/local/bin/bongo-cat-omarchy -> /path/to/repo/bin/bongo-cat-omarchy
