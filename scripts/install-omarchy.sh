@@ -11,6 +11,7 @@ SERVICE_PATH="${SERVICE_DIR}/${APP_NAME}.service"
 PORT=""
 INSTALL_SERVICE=""
 FIX_PERMISSIONS=""
+INSTALL_UDEV_RULE=""
 ASSUME_YES=0
 
 usage() {
@@ -25,6 +26,8 @@ Options:
   --no-service                  Do not install the user systemd service
   --fix-permissions             Run sudo permission setup when needed
   --no-fix-permissions          Only print permission commands
+  --udev-rule                   Install a persistent USB serial udev rule
+  --no-udev-rule                Do not install a udev rule
   --port PATH                   ESP32 serial path, preferably /dev/serial/by-id/...
   -y, --yes                     Use yes for installer prompts
   -h, --help                    Show this help
@@ -52,6 +55,14 @@ while [[ $# -gt 0 ]]; do
       ;;
     --no-fix-permissions)
       FIX_PERMISSIONS=0
+      shift
+      ;;
+    --udev-rule)
+      INSTALL_UDEV_RULE=1
+      shift
+      ;;
+    --no-udev-rule)
+      INSTALL_UDEV_RULE=0
       shift
       ;;
     --port)
@@ -149,6 +160,29 @@ WantedBy=default.target
 SERVICE
 }
 
+install_udev_rule() {
+  local rule_path="/etc/udev/rules.d/70-bongo-cat-omarchy.rules"
+  local tmp_rule
+  tmp_rule="$(mktemp)"
+  cat > "${tmp_rule}" <<'RULE'
+# Bongo Cat Omarchy USB serial adapters.
+#
+# uaccess grants the active desktop user access through systemd-logind.
+# uucp keeps the traditional Arch serial group behavior as a fallback.
+SUBSYSTEM=="tty", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", GROUP="uucp", MODE="0660", TAG+="uaccess"
+SUBSYSTEM=="tty", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="5523", GROUP="uucp", MODE="0660", TAG+="uaccess"
+SUBSYSTEM=="tty", ATTRS{idVendor}=="10c4", GROUP="uucp", MODE="0660", TAG+="uaccess"
+SUBSYSTEM=="tty", ATTRS{idVendor}=="303a", GROUP="uucp", MODE="0660", TAG+="uaccess"
+SUBSYSTEM=="tty", ATTRS{idVendor}=="0403", GROUP="uucp", MODE="0660", TAG+="uaccess"
+RULE
+
+  run_sudo install -m 0644 "${tmp_rule}" "${rule_path}"
+  rm -f "${tmp_rule}"
+  run_sudo udevadm control --reload-rules
+  run_sudo udevadm trigger --subsystem-match=tty || true
+  echo "Installed persistent udev rule: ${rule_path}"
+}
+
 cd "${REPO_ROOT}"
 
 echo "==> Building ${APP_NAME}"
@@ -230,6 +264,23 @@ if [[ -n "${PORT}" && -e "${PORT}" ]]; then
       run_sudo setfacl -m "u:${USER}:rw" "${tty_path}"
     fi
   fi
+fi
+
+echo
+echo "==> Persistent USB rule"
+if [[ -z "${INSTALL_UDEV_RULE}" ]]; then
+  if ask_yes_no "Install a persistent udev rule so USB serial permissions survive replugging?" "y"; then
+    INSTALL_UDEV_RULE=1
+  else
+    INSTALL_UDEV_RULE=0
+  fi
+fi
+
+if [[ "${INSTALL_UDEV_RULE}" -eq 1 ]]; then
+  install_udev_rule
+  echo "Replug the ESP32 after this step if it was already connected."
+else
+  echo "Skipping udev rule."
 fi
 
 echo

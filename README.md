@@ -83,6 +83,7 @@ The installer uses `sudo` only for system-level bits:
 - linking `/usr/local/bin/bongo-cat-omarchy`
 - adding your user to `uucp,input`
 - adding a temporary ACL for the plugged-in ESP32 if your current session needs it
+- installing a persistent udev rule so USB serial access survives unplug/replug
 
 ## Permissions, The Least Silly Part
 
@@ -110,6 +111,15 @@ Use the real tty from:
 ```bash
 bongo-cat-omarchy ports
 ```
+
+That temporary ACL disappears when the device node is recreated. The installer
+can also install a udev rule for common ESP32 USB serial adapters:
+
+```bash
+./scripts/install-omarchy.sh --udev-rule
+```
+
+After installing the rule, replug the ESP32.
 
 ## Running It By Hand
 
