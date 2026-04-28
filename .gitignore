@@ -1,0 +1,9 @@
+.codex
+.venv/
+.gocache/
+.gomodcache/
+bin/
+__pycache__/
+*.py[cod]
+*.egg-info/
+upstream/
