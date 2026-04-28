@@ -1,89 +1,123 @@
 # Bongo Cat Omarchy
 
-Linux/Omarchy host binary for the ESP32 firmware from [`vostoklabs/bongo_cat_monitor`](https://github.com/vostoklabs/bongo_cat_monitor).
+A tiny Linux sidecar for your tiny typing desk companion.
 
-This app sends the same serial protocol as the upstream desktop apps, but uses Linux `/dev/input/event*` devices for typing detection so it works under Arch, Omarchy, Hyprland, and Wayland without X11 global-key APIs.
+This is the Omarchy/Arch host app for the ESP32 Bongo Cat monitor firmware from
+[`vostoklabs/bongo_cat_monitor`](https://github.com/vostoklabs/bongo_cat_monitor).
+It watches your keyboard, sends CPU/RAM/WPM stats over USB serial, and lets the
+little screen do its little bongo routine while you work.
 
-## Hardware
+It is intentionally small:
 
-Use a data-capable USB cable. On a CH340-based ESP32, the device usually appears as:
+- one Go binary
+- no Electron
+- no Python runtime
+- no X11 global-key tricks
+- works on Wayland/Hyprland by reading Linux input devices directly
 
-```text
-/dev/serial/by-id/usb-1a86_USB_Serial-if00-port0
-```
-
-Check detected ports:
-
-```bash
-bongo-cat-omarchy ports
-```
-
-## Build
+## Quick Start
 
 ```bash
-go build -o bin/bongo-cat-omarchy ./cmd/bongo-cat-omarchy
-```
-
-## Install On Omarchy
-
-The installer builds the binary, symlinks it to `/usr/local/bin`, checks USB/input permissions, and can install a user systemd service.
-
-```bash
+git clone https://github.com/bprendie/bongocat_omarchy.git
+cd bongocat_omarchy
 ./scripts/install-omarchy.sh
 ```
 
-The guided install asks before applying permission fixes or enabling the service.
+The installer builds the binary, links it into `/usr/local/bin`, checks USB and
+keyboard permissions, and asks whether to install the background service.
 
-Install and enable the background service in one command:
-
-```bash
-./scripts/install-omarchy.sh --service --port /dev/serial/by-id/usb-1a86_USB_Serial-if00-port0
-```
-
-For a mostly unattended install:
+For the full “just make it live in the background” path:
 
 ```bash
 ./scripts/install-omarchy.sh --service --fix-permissions -y
 ```
 
-The script uses `sudo` only when it needs to:
+## The Cable Situation
 
-- link `/usr/local/bin/bongo-cat-omarchy`
-- add your user to `uucp,input`
-- grant a temporary ACL to the currently plugged-in ESP32 serial device
+Use a real data USB cable. Charge-only cables are very good at making this
+project look broken.
+
+A CH340-based ESP32 usually shows up like this:
 
 ```text
-/usr/local/bin/bongo-cat-omarchy -> /path/to/repo/bin/bongo-cat-omarchy
+/dev/serial/by-id/usb-1a86_USB_Serial-if00-port0
 ```
 
-## Permissions
+Check what your machine sees:
 
-You need access to both:
+```bash
+bongo-cat-omarchy ports
+```
 
-- ESP32 serial device, usually group `uucp` on Arch
-- Keyboard input devices, group `input`
+If the only serial device is something like `Quectel`, that is probably your
+laptop modem, not the ESP32.
 
-Set that up once:
+## Install Modes
+
+Guided install:
+
+```bash
+./scripts/install-omarchy.sh
+```
+
+Install as a user service:
+
+```bash
+./scripts/install-omarchy.sh --service
+```
+
+Install as a user service with an explicit ESP32 path:
+
+```bash
+./scripts/install-omarchy.sh --service --port /dev/serial/by-id/usb-1a86_USB_Serial-if00-port0
+```
+
+Mostly unattended:
+
+```bash
+./scripts/install-omarchy.sh --service --fix-permissions -y
+```
+
+The installer uses `sudo` only for system-level bits:
+
+- linking `/usr/local/bin/bongo-cat-omarchy`
+- adding your user to `uucp,input`
+- adding a temporary ACL for the plugged-in ESP32 if your current session needs it
+
+## Permissions, The Least Silly Part
+
+The app needs access to two things:
+
+- the ESP32 serial device, usually group `uucp` on Arch
+- keyboard input devices, group `input`
+
+Permanent fix:
 
 ```bash
 sudo usermod -aG uucp,input "$USER"
 ```
 
-Then log out and back in. Until your new group membership is active, temporary per-device access can be granted with:
+Then log out and back in.
+
+Temporary fix for the current plugged-in ESP32:
 
 ```bash
 sudo setfacl -m u:"$USER":rw /dev/ttyUSB1
 ```
 
-Use the real tty shown by `bongo-cat-omarchy ports`.
+Use the real tty from:
 
-## Run
+```bash
+bongo-cat-omarchy ports
+```
+
+## Running It By Hand
 
 ```bash
 bongo-cat-omarchy run --port /dev/serial/by-id/usb-1a86_USB_Serial-if00-port0
 ```
 
-Useful diagnostics:
+Diagnostics:
 
 ```bash
 bongo-cat-omarchy ports
@@ -93,13 +127,13 @@ bongo-cat-omarchy doctor
 
 ## Background Service
 
-The install script writes:
+The service is a user systemd service:
 
 ```text
 ~/.config/systemd/user/bongo-cat-omarchy.service
 ```
 
-Manage it with:
+Manage it:
 
 ```bash
 systemctl --user status bongo-cat-omarchy
@@ -107,10 +141,44 @@ systemctl --user restart bongo-cat-omarchy
 systemctl --user stop bongo-cat-omarchy
 ```
 
-Logs:
+Watch logs:
 
 ```bash
 journalctl --user -u bongo-cat-omarchy -f
 ```
 
-If the ESP32 is unplugged when the service starts, the process stays active and retries every 3 seconds until the serial device appears.
+If the ESP32 is unplugged when the service starts, the process stays alive and
+retries every 3 seconds until the serial device appears.
+
+## Build
+
+```bash
+go build -o bin/bongo-cat-omarchy ./cmd/bongo-cat-omarchy
+```
+
+## What It Sends
+
+The binary talks to the firmware using the same simple serial commands as the
+upstream desktop apps:
+
+```text
+PING
+TIME:HH:MM
+STATS:CPU:12,RAM:34,WPM:56
+SPEED:90
+STOP
+STREAK_ON
+STREAK_OFF
+IDLE_START
+```
+
+That is the whole trick. Keyboard goes click, serial line goes beep, tiny screen
+does bongos.
+
+## Credits
+
+Firmware and original desktop app:
+[`vostoklabs/bongo_cat_monitor`](https://github.com/vostoklabs/bongo_cat_monitor)
+
+This repo is just the Omarchy-shaped host binary for the same delightful little
+desk toy.
