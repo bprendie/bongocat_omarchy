@@ -9,6 +9,7 @@ SERVICE_DIR="${HOME}/.config/systemd/user"
 SERVICE_PATH="${SERVICE_DIR}/${APP_NAME}.service"
 
 PORT=""
+CLOCK_FORMAT="24h"
 INSTALL_SERVICE=""
 FIX_PERMISSIONS=""
 INSTALL_UDEV_RULE=""
@@ -29,6 +30,7 @@ Options:
   --udev-rule                   Install a persistent USB serial udev rule
   --no-udev-rule                Do not install a udev rule
   --port PATH                   ESP32 serial path, preferably /dev/serial/by-id/...
+  --clock 12h|24h               Display clock format on the ESP32 (default: 24h)
   -y, --yes                     Use yes for installer prompts
   -h, --help                    Show this help
 
@@ -69,6 +71,14 @@ while [[ $# -gt 0 ]]; do
       PORT="${2:-}"
       if [[ -z "${PORT}" ]]; then
         echo "--port requires a value" >&2
+        exit 2
+      fi
+      shift 2
+      ;;
+    --clock)
+      CLOCK_FORMAT="${2:-}"
+      if [[ "${CLOCK_FORMAT}" != "12h" && "${CLOCK_FORMAT}" != "24h" ]]; then
+        echo "--clock must be 12h or 24h" >&2
         exit 2
       fi
       shift 2
@@ -142,6 +152,7 @@ write_service() {
   if [[ -n "${PORT}" ]]; then
     exec_start="${exec_start} --port ${PORT}"
   fi
+  exec_start="${exec_start} --clock ${CLOCK_FORMAT}"
 
   mkdir -p "${SERVICE_DIR}"
   cat > "${SERVICE_PATH}" <<SERVICE

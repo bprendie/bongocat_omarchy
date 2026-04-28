@@ -11,6 +11,7 @@ type Config struct {
 	Inputs       []string
 	IdleTimeout  time.Duration
 	SleepTimeout time.Duration
+	ClockFormat  string
 }
 
 func Run(ctx context.Context, cfg Config) error {
@@ -19,6 +20,9 @@ func Run(ctx context.Context, cfg Config) error {
 	}
 	if cfg.SleepTimeout <= 0 {
 		cfg.SleepTimeout = time.Minute
+	}
+	if cfg.ClockFormat == "" {
+		cfg.ClockFormat = "24h"
 	}
 
 	link, err := waitForSerial(ctx, cfg.Port)
@@ -30,6 +34,7 @@ func Run(ctx context.Context, cfg Config) error {
 	}
 	defer link.Close()
 	fmt.Printf("Connected to ESP32 on %s\n", link.Path())
+	sendClockFormat(link, cfg.ClockFormat)
 
 	typing, err := StartTypingMonitor(cfg.Inputs)
 	if err != nil {
@@ -58,7 +63,7 @@ func Run(ctx context.Context, cfg Config) error {
 			return nil
 		case now := <-ticker.C:
 			send := func(command string) bool {
-				next, ok := sendOrReconnect(ctx, link, cfg.Port, command)
+				next, ok := sendOrReconnect(ctx, link, cfg.Port, cfg.ClockFormat, command)
 				link = next
 				return ok
 			}
@@ -139,7 +144,7 @@ func waitForSerial(ctx context.Context, port string) (*SerialLink, error) {
 	}
 }
 
-func sendOrReconnect(ctx context.Context, link *SerialLink, port string, command string) (*SerialLink, bool) {
+func sendOrReconnect(ctx context.Context, link *SerialLink, port string, clockFormat string, command string) (*SerialLink, bool) {
 	if err := link.Send(command); err == nil {
 		return link, true
 	} else {
@@ -152,6 +157,7 @@ func sendOrReconnect(ctx context.Context, link *SerialLink, port string, command
 		return link, false
 	}
 	fmt.Printf("Reconnected to ESP32 on %s\n", next.Path())
+	sendClockFormat(next, clockFormat)
 
 	if err := next.Send(command); err != nil {
 		fmt.Printf("Serial write failed after reconnect: %v\n", err)
@@ -159,6 +165,15 @@ func sendOrReconnect(ctx context.Context, link *SerialLink, port string, command
 		return link, false
 	}
 	return next, true
+}
+
+func sendClockFormat(link *SerialLink, clockFormat string) {
+	if clockFormat == "12h" {
+		_ = link.Send("TIME_FORMAT:12")
+	} else {
+		_ = link.Send("TIME_FORMAT:24")
+	}
+	_ = link.Send("TIME:" + time.Now().Format("15:04"))
 }
 
 func WPMToAnimationSpeed(wpm float64) int {

@@ -55,8 +55,12 @@ func run(args []string) error {
 		fs.Var(&inputs, "input", "keyboard event device; may be repeated")
 		idleTimeout := fs.Duration("idle-timeout", time.Second, "typing idle timeout")
 		sleepTimeout := fs.Duration("sleep-timeout", time.Minute, "idle delay before IDLE_START")
+		clockFormat := fs.String("clock", "24h", "display clock format: 12h or 24h")
 		if err := fs.Parse(args[1:]); err != nil {
 			return err
+		}
+		if *clockFormat != "12h" && *clockFormat != "24h" {
+			return fmt.Errorf("--clock must be 12h or 24h")
 		}
 
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -67,6 +71,7 @@ func run(args []string) error {
 			Inputs:       inputs,
 			IdleTimeout:  *idleTimeout,
 			SleepTimeout: *sleepTimeout,
+			ClockFormat:  *clockFormat,
 		}
 		return host.Run(ctx, cfg)
 	case "service":
@@ -101,7 +106,7 @@ WantedBy=default.target
 
 func usage() {
 	fmt.Println(`Usage:
-  bongo-cat-omarchy run [--port /dev/serial/by-id/...] [--input /dev/input/eventX]
+  bongo-cat-omarchy run [--port /dev/serial/by-id/...] [--clock 12h|24h]
   bongo-cat-omarchy ports
   bongo-cat-omarchy inputs
   bongo-cat-omarchy doctor

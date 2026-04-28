@@ -72,6 +72,12 @@ Install as a user service with an explicit ESP32 path:
 ./scripts/install-omarchy.sh --service --port /dev/serial/by-id/usb-1a86_USB_Serial-if00-port0
 ```
 
+Install with a 12-hour clock:
+
+```bash
+./scripts/install-omarchy.sh --service --clock 12h
+```
+
 Mostly unattended:
 
 ```bash
@@ -125,6 +131,12 @@ After installing the rule, replug the ESP32.
 
 ```bash
 bongo-cat-omarchy run --port /dev/serial/by-id/usb-1a86_USB_Serial-if00-port0
+```
+
+Use a 12-hour display clock:
+
+```bash
+bongo-cat-omarchy run --clock 12h
 ```
 
 Diagnostics:
@@ -191,6 +203,8 @@ upstream desktop apps:
 ```text
 PING
 TIME:HH:MM
+TIME_FORMAT:12
+TIME_FORMAT:24
 STATS:CPU:12,RAM:34,WPM:56
 SPEED:90
 STOP
