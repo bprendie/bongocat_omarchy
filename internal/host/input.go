@@ -26,9 +26,14 @@ type InputDevice struct {
 	LikelyKeyboard bool
 }
 
+type keystroke struct {
+	at   time.Time
+	code int
+}
+
 type TypingMonitor struct {
 	mu          sync.Mutex
-	keystrokes  []time.Time
+	keystrokes  []keystroke
 	lastKey     time.Time
 	active      bool
 	previousWPM float64
@@ -101,19 +106,29 @@ func (m *TypingMonitor) Snapshot(idleTimeout time.Duration) (float64, bool) {
 	if len(m.keystrokes) < 2 {
 		return 0, true
 	}
+	cutoff := now.Add(-15 * time.Second)
 	start := 0
-	if len(m.keystrokes) > 8 {
-		start = len(m.keystrokes) - 8
+	for start < len(m.keystrokes) && m.keystrokes[start].at.Before(cutoff) {
+		start++
 	}
-	recent := m.keystrokes[start:]
-	span := now.Sub(recent[0]).Seconds()
-	if span < 0.4 {
+	if start > 0 {
+		m.keystrokes = append([]keystroke(nil), m.keystrokes[start:]...)
+	}
+
+	recent := m.keystrokes
+	span := now.Sub(recent[0].at).Seconds()
+	if span < 0.75 {
 		return 0, true
 	}
+
+	if span < 6 {
+		span = 6
+	}
+
 	raw := (float64(len(recent)) / 5.0) / (span / 60.0)
 	wpm := raw
 	if m.previousWPM > 0 {
-		wpm = m.previousWPM*0.6 + raw*0.4
+		wpm = m.previousWPM*0.75 + raw*0.25
 	}
 	if wpm > 200 {
 		wpm = 200
@@ -138,18 +153,26 @@ func (m *TypingMonitor) readLoop(file *os.File) {
 		code := binary.LittleEndian.Uint16(buf[18:20])
 		value := int32(binary.LittleEndian.Uint32(buf[20:24]))
 		if eventType == evKey && value == keyPress && isTypingKey(int(code)) {
-			m.recordKey()
+			m.recordKey(int(code))
 		}
 	}
 }
 
-func (m *TypingMonitor) recordKey() {
+func (m *TypingMonitor) recordKey(code int) {
 	now := time.Now()
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.keystrokes = append(m.keystrokes, now)
-	if len(m.keystrokes) > 50 {
-		m.keystrokes = m.keystrokes[len(m.keystrokes)-50:]
+
+	if len(m.keystrokes) > 0 {
+		last := m.keystrokes[len(m.keystrokes)-1]
+		if last.code == code && now.Sub(last.at) < 20*time.Millisecond {
+			return
+		}
+	}
+
+	m.keystrokes = append(m.keystrokes, keystroke{at: now, code: code})
+	if len(m.keystrokes) > 120 {
+		m.keystrokes = m.keystrokes[len(m.keystrokes)-120:]
 	}
 	m.lastKey = now
 	m.active = true
